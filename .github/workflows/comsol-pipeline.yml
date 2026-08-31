@@ -1,0 +1,81 @@
+# Runs run_pipeline.py on a COMSOL export that lives in Drive (never in
+# git - these files are large). Trigger manually with the file's Drive
+# URL/ID; it downloads to the runner's disk, processes it, and uploads
+# ONLY the small output zip as a build artifact.
+#
+# run_pipeline.py itself has no idea it's running in CI - fetch_input.py
+# is the only environment-aware code, and it does the same thing here as
+# it does when you pass a local path on your own machine.
+
+name: comsol-pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      data_ref:
+        description: "Local test path, or Google Drive URL/ID of the COMSOL export"
+        required: true
+      case_name:
+        description: "Optional case name override (defaults to filename stem)"
+        required: false
+      physics:
+        description: "Physics type registered in derived_quantities.py"
+        required: false
+        default: "mixed_convection"
+
+jobs:
+  process-case:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run pipeline on the provided data file
+        run: |
+          python run_pipeline.py \
+            --input "${{ inputs.data_ref }}" \
+            --physics "${{ inputs.physics }}" \
+            ${{ inputs.case_name && format('--case-name {0}', inputs.case_name) || '' }}
+
+      # Only the zip (plots + manifest, a few hundred KB) leaves the
+      # runner - the downloaded COMSOL export itself is discarded when
+      # the runner is torn down, never committed anywhere.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.case_name || 'comsol-case' }}
+          path: artifacts/*.zip
+          retention-days: 30
+
+  # Optional second job: once you have several case zips (either from
+  # repeated runs of the job above, or downloaded from previous runs),
+  # assemble them into one Word report. Uncomment and adapt paths once
+  # you're ready - left commented since it needs the accumulated zips
+  # and figure_map.json to already exist somewhere accessible to the
+  # runner (e.g. a previous artifact download, or Drive).
+  #
+  # build-report:
+  #   needs: process-case
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #     - run: pip install -r requirements.txt
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         path: artifacts
+  #     - run: |
+  #         python src/report_from_artifacts.py \
+  #           --artifacts-dir artifacts \
+  #           --figure-map figure_map.json \
+  #           --output output/validation_report.docx
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: validation-report
+  #         path: output/validation_report.docx
