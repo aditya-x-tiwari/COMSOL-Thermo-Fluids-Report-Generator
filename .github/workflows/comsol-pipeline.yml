@@ -38,7 +38,7 @@ jobs:
       - name: Run pipeline on the provided data file
         run: |
           python run_pipeline.py \
-            --input "https://drive.google.com/file/d/1CQUT_d7FO6axm1E0S-qXiIqTegtw61CI/view?usp=sharing" \
+            --input "${{ inputs.data_ref }}" \
             --physics "${{ inputs.physics }}" \
             ${{ inputs.case_name && format('--case-name {0}', inputs.case_name) || '' }}
 
