@@ -1,0 +1,9 @@
+MPh>=1.3.1
+JPype1
+numpy
+pandas
+matplotlib
+python-docx
+PyYAML
+gdown
+requests
